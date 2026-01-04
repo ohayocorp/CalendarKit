@@ -8,6 +8,7 @@ public protocol TimelinePagerViewDelegate: AnyObject {
     func timelinePagerDidTransitionCancel(timelinePager: TimelinePagerView)
     func timelinePager(timelinePager: TimelinePagerView, willMoveTo date: Date)
     func timelinePager(timelinePager: TimelinePagerView, didMoveTo  date: Date)
+    func timelinePager(timelinePager: TimelinePagerView, refreshed  date: Date)
     func timelinePager(timelinePager: TimelinePagerView, didLongPressTimelineAt date: Date)
 
     // Editing
@@ -147,6 +148,11 @@ public final class TimelinePagerView: UIView, UIGestureRecognizerDelegate, UIScr
     private func configureTimelineController(date: Date) -> TimelineContainerController {
         let controller = TimelineContainerController()
         updateStyleOfTimelineContainer(controller: controller)
+
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
+        controller.container.refreshControl = refreshControl
+
         let timeline = controller.timeline
         timeline.longPressGestureRecognizer.addTarget(self, action: #selector(timelineDidLongPress(_:)))
         timeline.delegate = self
@@ -399,6 +405,13 @@ public final class TimelinePagerView: UIView, UIGestureRecognizerDelegate, UIScr
         if sender.state == .ended {
             commitEditing()
         }
+    }
+
+    @objc private func handleRefresh() {
+        guard let controller = currentTimeline else { return }
+        
+        self.delegate?.timelinePager(timelinePager: self, refreshed: controller.timeline.date)
+        controller.container.refreshControl?.endRefreshing()
     }
 
     private func yToDate(y: Double, timeline: TimelineView) -> Date {

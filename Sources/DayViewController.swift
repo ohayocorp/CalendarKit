@@ -94,6 +94,7 @@ open class DayViewController: UIViewController, EventDataSource, DayViewDelegate
 
     open func dayView(dayView: DayView, willMoveTo date: Date) {}
     open func dayView(dayView: DayView, didMoveTo date: Date) {}
+    open func dayView(dayView: DayView, refreshed date: Date) {}
 
     open func dayView(dayView: DayView, didLongPressTimelineAt date: Date) {}
     open func dayView(dayView: DayView, didUpdate event: EventDescriptor) {}

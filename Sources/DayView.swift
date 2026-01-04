@@ -9,6 +9,7 @@ public protocol DayViewDelegate: AnyObject {
     func dayViewDidTransitionCancel(dayView: DayView)
     func dayView(dayView: DayView, willMoveTo date: Date)
     func dayView(dayView: DayView, didMoveTo  date: Date)
+    func dayView(dayView: DayView, refreshed  date: Date)
     func dayView(dayView: DayView, didUpdate event: EventDescriptor)
 }
 
@@ -187,6 +188,9 @@ public class DayView: UIView, TimelinePagerViewDelegate {
     }
     public func timelinePager(timelinePager: TimelinePagerView, didMoveTo  date: Date) {
         delegate?.dayView(dayView: self, didMoveTo: date)
+    }
+    public func timelinePager(timelinePager: TimelinePagerView, refreshed  date: Date) {
+        delegate?.dayView(dayView: self, refreshed: date)
     }
     public func timelinePager(timelinePager: TimelinePagerView, didLongPressTimelineAt date: Date) {
         delegate?.dayView(dayView: self, didLongPressTimelineAt: date)
