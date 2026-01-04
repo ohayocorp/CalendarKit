@@ -255,6 +255,10 @@ public final class TimelineView: UIView {
 
         var hourToRemoveIndex = -1
 
+        // When showing the current-time indicator, avoid drawing the half-hour separator nearest to it.
+        // This mirrors the existing `hourToRemoveIndex` behavior for full hour lines.
+        var halfHourToRemoveIndex = -1
+
         var accentedHour = -1
         var accentedMinute = -1
 
@@ -271,6 +275,16 @@ public final class TimelineView: UIView {
             } else if minute < 21 {
                 hourToRemoveIndex = hour
             }
+
+            // Half-hour separators are drawn between hour N and hour N+1. We treat that as belonging
+            // to hour N (the current loop index), so we can skip it with a single index check.
+            if minute >= 51 {
+                halfHourToRemoveIndex = hour + 1
+            } else if minute <= 9 {
+                halfHourToRemoveIndex = hour - 1
+            } else if minute >= 21 && minute <= 39 {
+                halfHourToRemoveIndex = hour
+            }
         }
 
         let mutableParagraphStyle = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
@@ -282,8 +296,19 @@ public final class TimelineView: UIView {
                           NSAttributedString.Key.foregroundColor: self.style.timeColor,
                           NSAttributedString.Key.font: style.font] as [NSAttributedString.Key : Any]
 
+        let halfHourLabelFont = style.font.withSize(style.font.pointSize * 0.85)
+        let halfHourLabelColor = self.style.timeColor.withAlphaComponent(0.5)
+        let halfHourLabelAttributes = [NSAttributedString.Key.paragraphStyle: paragraphStyle,
+                                       NSAttributedString.Key.foregroundColor: halfHourLabelColor,
+                                       NSAttributedString.Key.font: halfHourLabelFont] as [NSAttributedString.Key : Any]
+
         let scale = UIScreen.main.scale
         let hourLineHeight = 1 / UIScreen.main.scale
+
+        // Half-hour lines are visually lighter than full hour lines.
+        let halfHourLineHeight = max(0.7 / UIScreen.main.scale, 0.7)
+        let halfHourLineAlpha: CGFloat = 0.35
+        let halfHourLineWidthMultiplier: Double = 1
 
         let center: Double
         if Int(scale) % 2 == 0 {
@@ -322,6 +347,67 @@ public final class TimelineView: UIView {
             context?.move(to: CGPoint(x: xStart, y: y))
             context?.addLine(to: CGPoint(x: xEnd, y: y))
             context?.strokePath()
+
+            // Draw half-hour separators between hours.
+            if hour < times.count - 1 {
+                if hour != halfHourToRemoveIndex {
+                    let halfY = y + style.verticalDiff / 2
+                    let halfXEnd: Double
+                    if rightToLeft {
+                        halfXEnd = bounds.width - (bounds.width - xEnd) * halfHourLineWidthMultiplier
+                    } else {
+                        halfXEnd = xStart + (xEnd - xStart) * halfHourLineWidthMultiplier
+                    }
+
+                    context?.saveGState()
+                    context?.setStrokeColor(style.separatorColor.withAlphaComponent(halfHourLineAlpha).cgColor)
+                    context?.setLineWidth(halfHourLineHeight)
+                    context?.beginPath()
+                    context?.move(to: CGPoint(x: xStart, y: halfY))
+                    context?.addLine(to: CGPoint(x: halfXEnd, y: halfY))
+                    context?.strokePath()
+                    context?.restoreGState()
+
+                    // Draw half-hour label.
+                    // Derive it from the existing hour label strings so it matches 12/24h format and locale.
+                    let halfTime: String = {
+                        let hourText = time
+                        if is24hClock {
+                            // `hourText` may be "01" or "01:00" depending on the formatter.
+                            // Ensure we always end up with "HH:30" (not "HH:00:30").
+                            if let colonIndex = hourText.firstIndex(of: ":") {
+                                return "\(hourText[..<colonIndex]):30"
+                            }
+                            return "\(hourText):30"
+                        }
+
+                        // Typical 12h strings look like "1 AM"/"1 PM". Insert ":30" before the suffix.
+                        let parts = hourText.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+                        if parts.count == 2 {
+                            return "\(parts[0]):30 \(parts[1])"
+                        }
+                        return "\(hourText):30"
+                    }()
+
+                    let fontSize = halfHourLabelFont.pointSize
+                    let halfTimeRect: CGRect = {
+                        var x: Double
+                        if rightToLeft {
+                            x = bounds.width - 53
+                        } else {
+                            x = 2
+                        }
+
+                        return CGRect(x: x,
+                                      y: halfY - 7,
+                                      width: style.leadingInset - 8,
+                                      height: fontSize + 2)
+                    }()
+
+                    NSString(string: halfTime).draw(in: halfTimeRect, withAttributes: halfHourLabelAttributes)
+                }
+            }
+
             context?.restoreGState()
 
             if hour == hourToRemoveIndex { continue }
@@ -344,7 +430,7 @@ public final class TimelineView: UIView {
             let timeString = NSString(string: time)
             timeString.draw(in: timeRect, withAttributes: attributes)
 
-            if accentedMinute == 0 {
+            if accentedMinute == 0 || accentedMinute == 30 {
                 continue
             }
 
@@ -362,7 +448,7 @@ public final class TimelineView: UIView {
 
                 let timeString = NSString(string: ":\(accentedMinute)")
 
-                timeString.draw(in: timeRect, withAttributes: attributes)
+                timeString.draw(in: timeRect, withAttributes: halfHourLabelAttributes)
             }
         }
     }
